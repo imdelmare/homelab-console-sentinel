@@ -1,0 +1,29 @@
+{
+  "loop_interval_seconds": 30,
+  "state_path": "data/sentinel.sqlite3",
+  "listen_host": "127.0.0.1",
+  "listen_port": 8766,
+  "heartbeat_token": "change-me-in-env-or-local-config",
+  "telegram": {
+    "bot_token": "",
+    "chat_id": "",
+    "timeout_seconds": 8
+  },
+  "targets": [
+    {
+      "id": "console-public-health",
+      "name": "Homelab Console public health",
+      "url": "https://console.example.com/health",
+      "timeout_seconds": 5,
+      "expected_status_min": 200,
+      "expected_status_max": 399
+    }
+  ],
+  "heartbeats": [
+    {
+      "id": "home",
+      "name": "Home network heartbeat",
+      "timeout_seconds": 180
+    }
+  ]
+}

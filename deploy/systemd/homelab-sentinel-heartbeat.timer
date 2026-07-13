@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodic Homelab Console heartbeat to External Sentinel
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=10s
+Unit=homelab-sentinel-heartbeat.service
+
+[Install]
+WantedBy=timers.target
