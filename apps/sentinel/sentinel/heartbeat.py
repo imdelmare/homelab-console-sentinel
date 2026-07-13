@@ -35,7 +35,7 @@ class HeartbeatServer:
                 if not self.path.startswith(prefix):
                     self.send_error(404)
                     return
-                if token and not _authorized(self.headers, token):
+                if not token or not _authorized(self.headers, token):
                     self._json(401, {"ok": False, "error": "unauthorized"})
                     return
                 source_id = unquote(self.path[len(prefix) :]).strip()

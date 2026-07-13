@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -94,6 +95,79 @@ def test_heartbeat_server_requires_token_and_records_payload(tmp_path):
         assert store.last_heartbeat_at("home") is not None
     finally:
         server.stop()
+
+
+def test_heartbeat_server_rejects_wrong_or_missing_token(tmp_path):
+    store = SentinelStore(str(tmp_path / "sentinel.sqlite3"))
+    server = HeartbeatServer("127.0.0.1", 0, "secret", store)
+    server.start()
+    assert server._server is not None
+    port = server._server.server_address[1]
+    try:
+        for headers in ({}, {"X-Sentinel-Token": "wrong"}):
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{port}/heartbeat/home",
+                data=json.dumps({"status": "ok"}).encode("utf-8"),
+                headers={"Content-Type": "application/json", **headers},
+                method="POST",
+            )
+            try:
+                urllib.request.urlopen(request, timeout=3)
+            except urllib.error.HTTPError as exc:
+                assert exc.code == 401
+            else:
+                raise AssertionError("expected 401 for missing/wrong token")
+        assert store.last_heartbeat_at("home") is None
+    finally:
+        server.stop()
+
+
+def test_heartbeat_server_fails_closed_without_configured_token(tmp_path):
+    store = SentinelStore(str(tmp_path / "sentinel.sqlite3"))
+    server = HeartbeatServer("127.0.0.1", 0, "", store)
+    server.start()
+    assert server._server is not None
+    port = server._server.server_address[1]
+    try:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/heartbeat/home",
+            data=json.dumps({"status": "ok"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(request, timeout=3)
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 401
+        else:
+            raise AssertionError("expected 401 when no heartbeat token is configured")
+        assert store.last_heartbeat_at("home") is None
+    finally:
+        server.stop()
+
+
+def test_incident_reopen_resets_occurrence_count(tmp_path):
+    store = SentinelStore(str(tmp_path / "sentinel.sqlite3"))
+    failing = Observation(
+        dedupe_key="http:console",
+        source_id="console",
+        kind="http",
+        ok=False,
+        title="Console failed",
+        description="timeout",
+    )
+    healthy = Observation(
+        dedupe_key="http:console",
+        source_id="console",
+        kind="http",
+        ok=True,
+        title="Console failed",
+        description="HTTP 200",
+    )
+    assert store.record_failure(failing).occurrences == 1
+    assert store.record_failure(failing).occurrences == 2
+    assert store.record_recovery(healthy).occurrences == 2
+    assert store.record_failure(failing).occurrences == 1
 
 
 def test_http_target_status_range(monkeypatch, tmp_path):

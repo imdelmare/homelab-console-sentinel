@@ -97,7 +97,9 @@ class SentinelStore:
                 )
                 return IncidentChange("repeated_open", observation, occurrences)
 
-            occurrences = 1 if row is None else int(row["occurrences"]) + 1
+            # A resolved incident reopening starts a fresh occurrence count rather
+            # than resuming the historical one from before it recovered.
+            occurrences = 1
             conn.execute(
                 """
                 insert into incidents (
