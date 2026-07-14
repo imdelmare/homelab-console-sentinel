@@ -11,9 +11,9 @@
   },
   "targets": [
     {
-      "id": "console-public-health",
-      "name": "Homelab Console public health",
-      "url": "https://console.example.com/health",
+      "id": "api-public-health",
+      "name": "Homelab Console API public health",
+      "url": "https://api.example.com/health",
       "timeout_seconds": 5,
       "expected_status_min": 200,
       "expected_status_max": 399

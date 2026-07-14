@@ -1,8 +1,16 @@
 # Homelab Sentinel
 
-Standalone external sentinel for Milestone 1. It is intentionally separate from
+Standalone external watcher for the VPS side. It is intentionally separate from
 `apps/api`: if Homelab Console, WireGuard, or the home network fails, this
-process can still emit Telegram alerts from the VPS.
+process can still emit Telegram alerts from outside the homelab.
+
+Keep Sentinel small:
+
+- fixed HTTP checks configured at startup;
+- one heartbeat receiver at `POST /heartbeat/{source_id}`;
+- local SQLite incident dedupe;
+- Telegram alert/recovery notifications;
+- no provider credentials and no remediation actions.
 
 Run locally:
 
@@ -19,7 +27,7 @@ Send one heartbeat from the cluster side:
 
 ```bash
 PYTHONPATH=apps/sentinel \
-SENTINEL_HEARTBEAT_URL=https://sentinel.example.com/heartbeat/home \
+SENTINEL_HEARTBEAT_URL=http://192.0.2.10:8766/heartbeat/home \
 SENTINEL_HEARTBEAT_TOKEN=... \
 python -m sentinel.heartbeat_client
 ```

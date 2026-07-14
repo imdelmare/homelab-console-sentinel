@@ -43,7 +43,13 @@ sudo cp deploy/systemd/sentinel-heartbeat.env.example /etc/homelab-console/senti
 ```
 
 Edit `/etc/homelab-console/sentinel-heartbeat.env` with the real Sentinel URL
-and token. Then install and start the timer:
+and token. For the current private WireGuard deployment, use:
+
+```env
+SENTINEL_HEARTBEAT_URL=http://192.0.2.10:8766/heartbeat/home
+```
+
+Then install and start the timer:
 
 ```bash
 sudo cp deploy/systemd/homelab-sentinel-heartbeat.service /etc/systemd/system/
@@ -131,15 +137,14 @@ As of the first VPS-only smoke test, the Homelab Sentinel deployment is:
 - VPS: `49.13.159.26` (`ubuntu-4gb-nbg1-2`);
 - path: `/opt/homelab-console-sentinel`;
 - container: `homelab-sentinel`;
-- bind: `127.0.0.1:8766->8766/tcp`;
+- bind: `192.0.2.10:8766->8766/tcp`;
 - real env/config paths on the VPS:
   - `/opt/homelab-console-sentinel/.env.sentinel`;
   - `/opt/homelab-console-sentinel/config/sentinel.local.json`;
 - state DB: `/opt/homelab-console-sentinel/data/sentinel.sqlite3`.
 
-The bind is loopback-only by design. The heartbeat endpoint is not publicly
-reachable yet; expose it later through a controlled HTTPS reverse proxy before
-enabling the Proxmox-side heartbeat timer.
+The bind is private-WireGuard-only by design. The heartbeat endpoint is not
+publicly reachable and does not need a Sentinel subdomain.
 
 Smoke test already performed:
 
@@ -148,6 +153,11 @@ Smoke test already performed:
 3. A manual local heartbeat to `/heartbeat/home` returned `{"ok": true}`.
 4. The next Sentinel loop marked the incident `resolved`.
 5. The container stayed running with restart policy `unless-stopped`.
+
+Current active check:
+
+- `api-public-health` -> `https://api.example.com/health`.
+- `home` heartbeat -> `http://192.0.2.10:8766/heartbeat/home`.
 
 Do not document the root password, Telegram bot token, Telegram chat id, or
 heartbeat token here. They exist only in local/VPS secret files.

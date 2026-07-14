@@ -1,8 +1,12 @@
 # External Sentinel
 
-External Sentinel is a small VPS-side service, separate from Homelab Console.
-It covers the failure mode where the console, WireGuard path, or home network is
-unreachable and the normal watcher stack cannot report its own outage.
+External Sentinel is the VPS-side external watcher, separate from Homelab
+Console. It covers the failure mode where the console, WireGuard path, or home
+network is unreachable and the normal watcher stack cannot report its own
+outage.
+
+Treat it as a dead-man switch, not a second control plane. It observes from the
+outside, deduplicates locally, and sends Telegram alerts directly from the VPS.
 
 ## Milestone 1
 
@@ -63,11 +67,12 @@ Proxmox cluster / home side
 ```
 
 Run Sentinel under systemd or Docker on the VPS. Bind the heartbeat listener to
-loopback or a private interface unless there is a specific reason to expose it
-through the reverse proxy. If exposed, keep the bearer token mandatory and move
-signed heartbeats into Milestone 3 before relying on it across an untrusted path.
+the VPS WireGuard address when the home side can reach it privately. Do not
+expose a public Sentinel hostname unless there is a specific reason to cross the
+public internet. If exposed, keep the bearer token mandatory and move signed
+heartbeats into Milestone 3 before relying on it across an untrusted path.
 
-For a VPS-only Docker deployment, use:
+For a VPS-only Docker deployment with the compose plugin, use:
 
 ```bash
 docker compose -f deploy/docker-compose.sentinel.yml --env-file .env.sentinel up -d --build
@@ -76,12 +81,15 @@ docker compose -f deploy/docker-compose.sentinel.yml --env-file .env.sentinel up
 `deploy/env.sentinel.example` is the environment template. Keep the filled
 `.env.sentinel` on the VPS only.
 
+The current lab deployment is a direct Docker deployment on the VPS. Preserve
+the mounted `config/` and `data/` directories when replacing the container.
+
 On the cluster side, use the one-shot heartbeat sender rather than adding a
 runtime dependency from Sentinel back into the console:
 
 ```bash
 PYTHONPATH=apps/sentinel \
-SENTINEL_HEARTBEAT_URL=https://sentinel.example.com/heartbeat/home \
+SENTINEL_HEARTBEAT_URL=http://192.0.2.10:8766/heartbeat/home \
 SENTINEL_HEARTBEAT_TOKEN='long-random-token' \
 python -m sentinel.heartbeat_client
 ```
