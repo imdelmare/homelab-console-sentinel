@@ -9,6 +9,31 @@ Use `deploy/env.sentinel.example`, `config/sentinel.example.json` and
 
 ## Step 1: VPS Only
 
+### Routine deploy from Homelab Console
+
+After the initial VPS setup below, routine deployments can be launched from
+the Homelab Console checkout. The script has a fixed VPS and remote path, uses
+strict host-key checking, preserves the remote heartbeat token/config/state,
+and synchronizes only the two Telegram values from the local `.env` over SSH
+stdin:
+
+```bash
+deploy/bootstrap-sentinel-vps-key.sh  # one time, interactive password prompt
+deploy/deploy-sentinel-vps.sh --check
+deploy/deploy-sentinel-vps.sh
+```
+
+It synchronizes only the fixed Sentinel package and Docker build files,
+preserving remote `.env.sentinel`, `config/` and `data/`. Deployments are
+serialized with `flock`; the script tags the previous image for rollback,
+recreates the fixed `homelab-sentinel` container with its private WireGuard
+bind, and waits for `/health`. No credentials are printed or passed through
+process arguments.
+
+The deploy uses only `/root/.ssh/homelab_sentinel_deploy`. Never copy the VPS
+password into a script, shell history or repository file. Rotate any password
+that has been pasted into chat or logs.
+
 On the VPS:
 
 ```bash
@@ -27,7 +52,7 @@ docker compose -f deploy/docker-compose.sentinel.yml --env-file .env.sentinel lo
 Check process liveness from the VPS:
 
 ```bash
-curl -fsS http://127.0.0.1:8766/health
+curl -fsS http://192.0.2.10:8766/health
 ```
 
 If the heartbeat endpoint is exposed through a reverse proxy, test that public
@@ -148,7 +173,7 @@ publicly reachable and does not need a Sentinel subdomain.
 
 Smoke test already performed:
 
-1. `GET http://127.0.0.1:8766/health` from the VPS returned `{"ok": true}`.
+1. `GET http://192.0.2.10:8766/health` from the VPS returned `{"ok": true}`.
 2. First run opened a local `heartbeat missing` incident.
 3. A manual local heartbeat to `/heartbeat/home` returned `{"ok": true}`.
 4. The next Sentinel loop marked the incident `resolved`.
