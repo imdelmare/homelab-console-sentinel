@@ -181,7 +181,7 @@ Smoke test already performed:
 
 Current active check:
 
-- `api-public-health` -> `https://api.example.com/health`.
+- `api-public-health` -> `https://console.example.com/health`.
 - `home` heartbeat -> `http://192.0.2.10:8766/heartbeat/home`.
 
 Do not document the root password, Telegram bot token, Telegram chat id, or
