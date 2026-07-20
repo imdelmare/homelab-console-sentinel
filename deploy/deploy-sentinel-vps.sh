@@ -7,8 +7,10 @@ set -Eeuo pipefail
 readonly VPS_TARGET="root@49.13.159.26"
 readonly REMOTE_DIR="/opt/homelab-console-sentinel"
 readonly REMOTE_ENV="${REMOTE_DIR}/.env.sentinel"
+readonly REMOTE_CONFIG="${REMOTE_DIR}/config/sentinel.local.json"
 readonly LOCAL_ENV=".env"
 readonly DEPLOY_KEY="/root/.ssh/homelab_sentinel_deploy"
+readonly PUBLIC_HEALTH_URL="https://console.example.com/health"
 readonly RSYNC_SSH="ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -i ${DEPLOY_KEY}"
 readonly SSH_OPTIONS=(
   -o BatchMode=yes
@@ -19,12 +21,15 @@ readonly SSH_OPTIONS=(
 )
 
 usage() {
-  echo "usage: deploy/deploy-sentinel-vps.sh [--check]" >&2
+  echo "usage: deploy/deploy-sentinel-vps.sh [--check|--update-public-health]" >&2
 }
 
 mode="deploy"
 if [[ ${1:-} == "--check" ]]; then
   mode="check"
+  shift
+elif [[ ${1:-} == "--update-public-health" ]]; then
+  mode="update-public-health"
   shift
 fi
 if (($#)); then
@@ -42,11 +47,56 @@ fi
 
 echo "Checking fixed Sentinel target..."
 ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
-  "test -d '$REMOTE_DIR' && test -f '$REMOTE_ENV' && test -f '$REMOTE_DIR/config/sentinel.local.json' && test -d '$REMOTE_DIR/data'"
+  "test -d '$REMOTE_DIR' && test -f '$REMOTE_ENV' && test -f '$REMOTE_CONFIG' && test -d '$REMOTE_DIR/data'"
 
 if [[ "$mode" == "check" ]]; then
   ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
     "docker inspect homelab-sentinel --format 'container={{.Name}} status={{.State.Status}} image={{.Config.Image}}' && curl -fsS http://192.0.2.10:8766/health"
+  exit 0
+fi
+
+if [[ "$mode" == "update-public-health" ]]; then
+  echo "Updating only the fixed api-public-health target..."
+  ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
+    "python3 - '$REMOTE_CONFIG' '$PUBLIC_HEALTH_URL'" <<'PY'
+import json
+import os
+import shutil
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+
+path = Path(sys.argv[1])
+new_url = sys.argv[2]
+data = json.loads(path.read_text(encoding="utf-8"))
+targets = data.get("targets")
+if not isinstance(targets, list):
+    raise SystemExit("sentinel targets must be a list")
+matches = [item for item in targets if isinstance(item, dict) and item.get("id") == "api-public-health"]
+if len(matches) != 1:
+    raise SystemExit("expected exactly one api-public-health target")
+target = matches[0]
+old_url = str(target.get("url") or "")
+if old_url == new_url:
+    print(f"api-public-health already uses {new_url}")
+    raise SystemExit(0)
+backup = path.with_name(
+    f"{path.name}.backup-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
+)
+shutil.copy2(path, backup)
+target["name"] = "Homelab Console API public health"
+target["url"] = new_url
+temporary = path.with_name(f".{path.name}.tmp")
+temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+os.chmod(temporary, path.stat().st_mode)
+os.replace(temporary, path)
+print(f"api-public-health: {old_url} -> {new_url}")
+print(f"backup={backup}")
+PY
+
+  echo "Restarting and verifying Sentinel..."
+  ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
+    "docker restart homelab-sentinel >/dev/null && for attempt in \$(seq 1 20); do curl -fsS http://192.0.2.10:8766/health >/dev/null && docker inspect homelab-sentinel --format 'container={{.Name}} status={{.State.Status}}' && exit 0; sleep 2; done; docker logs --tail 80 homelab-sentinel >&2; exit 1"
   exit 0
 fi
 

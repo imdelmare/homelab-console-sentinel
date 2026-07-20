@@ -20,6 +20,7 @@ stdin:
 ```bash
 deploy/bootstrap-sentinel-vps-key.sh  # one time, interactive password prompt
 deploy/deploy-sentinel-vps.sh --check
+deploy/deploy-sentinel-vps.sh --update-public-health
 deploy/deploy-sentinel-vps.sh
 ```
 
@@ -29,6 +30,11 @@ serialized with `flock`; the script tags the previous image for rollback,
 recreates the fixed `homelab-sentinel` container with its private WireGuard
 bind, and waits for `/health`. No credentials are printed or passed through
 process arguments.
+
+`--update-public-health` is a separate narrow operation: it changes only the
+`api-public-health` target to the repository's fixed Homelab Console health
+URL, creates a timestamped backup of the remote JSON, restarts Sentinel and
+checks its private health endpoint. It accepts no host, path or URL arguments.
 
 The deploy uses only `/root/.ssh/homelab_sentinel_deploy`. Never copy the VPS
 password into a script, shell history or repository file. Rotate any password
