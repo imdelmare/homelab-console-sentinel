@@ -31,7 +31,11 @@ class FailingNotifier:
 
 def test_deduplicates_open_incident_and_notifies_recovery(tmp_path):
     notifier = CaptureNotifier()
-    config = SentinelConfig(state_path=str(tmp_path / "sentinel.sqlite3"))
+    config = SentinelConfig(
+        state_path=str(tmp_path / "sentinel.sqlite3"),
+        recovery_confirmations=1,
+        aggregation_window_seconds=0,
+    )
     service = SentinelService(config, notifier=notifier)  # type: ignore[arg-type]
     failing = Observation(
         dedupe_key="http:console",
@@ -51,10 +55,12 @@ def test_deduplicates_open_incident_and_notifies_recovery(tmp_path):
     )
 
     assert service._handle_observation(failing)[0].action == "opened"
+    service._flush_notifications()
     assert service._handle_observation(failing)[0].action == "repeated_open"
     assert len(notifier.messages) == 1
 
     assert service._handle_observation(healthy)[0].action == "resolved"
+    service._flush_notifications()
     assert len(notifier.messages) == 2
     assert "RECOVERY" in notifier.messages[1]
 
@@ -63,6 +69,8 @@ def test_missing_heartbeat_opens_then_resolves_after_post(tmp_path):
     notifier = CaptureNotifier()
     config = SentinelConfig(
         state_path=str(tmp_path / "sentinel.sqlite3"),
+        recovery_confirmations=1,
+        aggregation_window_seconds=0,
         heartbeats=[HeartbeatConfig(id="home", name="Home", timeout_seconds=60)],
     )
     service = SentinelService(config, notifier=notifier)  # type: ignore[arg-type]
@@ -170,6 +178,61 @@ def test_incident_reopen_resets_occurrence_count(tmp_path):
     assert store.record_failure(failing).occurrences == 1
 
 
+def test_failure_and_recovery_require_confirmations(tmp_path):
+    store = SentinelStore(str(tmp_path / "sentinel.sqlite3"))
+    failing = Observation(
+        dedupe_key="http:console",
+        source_id="console",
+        kind="http",
+        ok=False,
+        title="Console failed",
+        description="timeout",
+        failure_confirmations=3,
+    )
+    healthy = Observation(
+        dedupe_key="http:console",
+        source_id="console",
+        kind="http",
+        ok=True,
+        title="Console failed",
+        description="HTTP 200",
+    )
+
+    assert store.record_failure(failing).action == "pending_failure"
+    assert store.record_failure(failing).action == "pending_failure"
+    assert store.record_failure(failing).action == "opened"
+    assert store.record_recovery(healthy, confirmations=2).action == "pending_recovery"
+    assert store.record_recovery(healthy, confirmations=2).action == "resolved"
+
+
+def test_correlated_sources_send_one_group_alert(tmp_path):
+    notifier = CaptureNotifier()
+    service = SentinelService(
+        SentinelConfig(
+            state_path=str(tmp_path / "sentinel.sqlite3"),
+            aggregation_window_seconds=0,
+        ),
+        notifier=notifier,  # type: ignore[arg-type]
+    )
+    for source in ("http", "heartbeat"):
+        service._handle_observation(
+            Observation(
+                dedupe_key=f"{source}:console",
+                source_id=source,
+                kind=source,
+                ok=False,
+                title=f"{source} failed",
+                description="timeout",
+                notification_group="availability",
+            )
+        )
+
+    service._flush_notifications()
+
+    assert len(notifier.messages) == 1
+    assert "2 correlated availability signal(s)" in notifier.messages[0]
+
+
 def test_http_target_status_range(monkeypatch, tmp_path):
     from sentinel import checks
 
@@ -189,7 +252,7 @@ def test_http_target_status_range(monkeypatch, tmp_path):
     )
     service = SentinelService(config, notifier=CaptureNotifier())  # type: ignore[arg-type]
     changes = service.run_once()
-    assert changes[0].action == "opened"
+    assert changes[0].action == "pending_failure"
     assert "HTTP 503" in changes[0].observation.description
 
 

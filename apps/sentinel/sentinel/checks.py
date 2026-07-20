@@ -23,6 +23,8 @@ def check_http_target(target: TargetConfig) -> Observation:
             ok=False,
             title=f"{target.name} health check failed",
             description=f"{type(exc).__name__}: {exc}",
+            failure_confirmations=target.failure_confirmations,
+            notification_group=target.notification_group,
         )
 
     ok = target.expected_status_min <= status <= target.expected_status_max
@@ -38,6 +40,8 @@ def check_http_target(target: TargetConfig) -> Observation:
             if not ok
             else f"HTTP {status} in expected range"
         ),
+        failure_confirmations=target.failure_confirmations,
+        notification_group=target.notification_group,
     )
 
 
@@ -51,6 +55,8 @@ def check_heartbeat(source: HeartbeatConfig, store: SentinelStore) -> Observatio
             ok=False,
             title=f"{source.name} heartbeat missing",
             description=f"No heartbeat received yet; timeout is {source.timeout_seconds}s",
+            failure_confirmations=source.failure_confirmations,
+            notification_group=source.notification_group,
         )
     age = (utcnow() - last_seen.astimezone(timezone.utc)).total_seconds()
     ok = age <= source.timeout_seconds
@@ -65,4 +71,6 @@ def check_heartbeat(source: HeartbeatConfig, store: SentinelStore) -> Observatio
             if not ok
             else f"Last heartbeat age {age:.0f}s"
         ),
+        failure_confirmations=source.failure_confirmations,
+        notification_group=source.notification_group,
     )

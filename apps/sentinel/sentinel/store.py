@@ -30,6 +30,8 @@ class Observation:
     ok: bool
     title: str
     description: str
+    failure_confirmations: int = 1
+    notification_group: str = "homelab-console-availability"
 
 
 @dataclass(frozen=True)
@@ -77,12 +79,23 @@ class SentinelStore:
                 );
                 """
             )
+            columns = {row[1] for row in conn.execute("pragma table_info(incidents)")}
+            additions = {
+                "failure_streak": "integer not null default 0",
+                "success_streak": "integer not null default 0",
+                "alert_notified": "integer not null default 0",
+                "notification_group": "text not null default 'homelab-console-availability'",
+                "last_notified_at": "text",
+            }
+            for name, definition in additions.items():
+                if name not in columns:
+                    conn.execute(f"alter table incidents add column {name} {definition}")
 
     def record_failure(self, observation: Observation) -> IncidentChange:
         now = iso()
         with self._connect() as conn:
             row = conn.execute(
-                "select status, occurrences from incidents where dedupe_key = ?",
+                "select status, occurrences, failure_streak from incidents where dedupe_key = ?",
                 (observation.dedupe_key,),
             ).fetchone()
             if row and row["status"] == "open":
@@ -97,6 +110,14 @@ class SentinelStore:
                 )
                 return IncidentChange("repeated_open", observation, occurrences)
 
+            streak = (
+                int(row["failure_streak"] or 0) + 1
+                if row and row["status"] == "pending"
+                else 1
+            )
+            status = "open" if streak >= max(1, observation.failure_confirmations) else "pending"
+            action = "opened" if status == "open" else "pending_failure"
+
             # A resolved incident reopening starts a fresh occurrence count rather
             # than resuming the historical one from before it recovered.
             occurrences = 1
@@ -104,42 +125,67 @@ class SentinelStore:
                 """
                 insert into incidents (
                     dedupe_key, source_id, kind, title, status, occurrences,
-                    first_seen_at, last_seen_at, resolved_at, last_error, recovery_notified
+                    first_seen_at, last_seen_at, resolved_at, last_error, recovery_notified,
+                    failure_streak, success_streak, alert_notified, notification_group
                 )
-                values (?, ?, ?, ?, 'open', ?, ?, ?, null, ?, 0)
+                values (?, ?, ?, ?, ?, ?, ?, ?, null, ?, 0, ?, 0, 0, ?)
                 on conflict(dedupe_key) do update set
-                    status = 'open',
+                    status = excluded.status,
                     occurrences = excluded.occurrences,
+                    first_seen_at = case
+                        when incidents.status = 'resolved' then excluded.first_seen_at
+                        else incidents.first_seen_at
+                    end,
                     last_seen_at = excluded.last_seen_at,
                     resolved_at = null,
                     last_error = excluded.last_error,
-                    recovery_notified = 0
+                    recovery_notified = 0,
+                    failure_streak = excluded.failure_streak,
+                    success_streak = 0,
+                    alert_notified = case
+                        when incidents.status = 'resolved' then 0
+                        else incidents.alert_notified
+                    end,
+                    notification_group = excluded.notification_group
                 """,
                 (
                     observation.dedupe_key,
                     observation.source_id,
                     observation.kind,
                     observation.title,
+                    status,
                     occurrences,
                     now,
                     now,
                     observation.description,
+                    streak,
+                    observation.notification_group,
                 ),
             )
-            return IncidentChange("opened", observation, occurrences)
+            return IncidentChange(action, observation, occurrences)
 
-    def record_recovery(self, observation: Observation) -> IncidentChange | None:
+    def record_recovery(self, observation: Observation, confirmations: int = 1) -> IncidentChange | None:
         now = iso()
         with self._connect() as conn:
             row = conn.execute(
                 """
-                select occurrences from incidents
-                where dedupe_key = ? and status = 'open'
+                select occurrences, status, success_streak from incidents
+                where dedupe_key = ? and status in ('open', 'pending')
                 """,
                 (observation.dedupe_key,),
             ).fetchone()
             if row is None:
                 return None
+            if row["status"] == "pending":
+                conn.execute("delete from incidents where dedupe_key = ?", (observation.dedupe_key,))
+                return IncidentChange("cleared_before_open", observation, int(row["occurrences"]))
+            success_streak = int(row["success_streak"] or 0) + 1
+            if success_streak < max(1, confirmations):
+                conn.execute(
+                    "update incidents set success_streak = ?, last_seen_at = ? where dedupe_key = ?",
+                    (success_streak, now, observation.dedupe_key),
+                )
+                return IncidentChange("pending_recovery", observation, int(row["occurrences"]))
             conn.execute(
                 """
                 update incidents
@@ -150,6 +196,60 @@ class SentinelStore:
                 (now, now, observation.dedupe_key),
             )
             return IncidentChange("resolved", observation, int(row["occurrences"]))
+
+    def notification_groups(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select pending.notification_group,
+                    min(pending.first_seen_at) as first_seen_at,
+                    (
+                        select max(all_i.last_notified_at) from incidents all_i
+                        where all_i.notification_group = pending.notification_group
+                    ) as last_notified_at
+                from incidents pending
+                where pending.status = 'open' and pending.alert_notified = 0
+                group by pending.notification_group
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def open_group_incidents(self, group: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "select dedupe_key, title, last_error from incidents where status = 'open' and notification_group = ?",
+                (group,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_group_alerted(self, group: str, *, suppressed: bool = False) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "update incidents set alert_notified = ?, last_notified_at = ? where status = 'open' and notification_group = ?",
+                (2 if suppressed else 1, iso(), group),
+            )
+
+    def due_recovery_groups(self) -> list[str]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                select distinct notification_group from incidents resolved
+                where status = 'resolved' and alert_notified = 1 and recovery_notified = 1
+                and not exists (
+                    select 1 from incidents open_i
+                    where open_i.notification_group = resolved.notification_group
+                    and open_i.status = 'open'
+                )
+                """
+            ).fetchall()
+        return [str(row[0]) for row in rows]
+
+    def mark_group_recovery_sent(self, group: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "update incidents set recovery_notified = 2 where status = 'resolved' and notification_group = ?",
+                (group,),
+            )
 
     def record_heartbeat(self, source_id: str, remote_addr: str, payload: dict[str, Any]) -> None:
         payload_json = json.dumps(payload, sort_keys=True)[:4096]

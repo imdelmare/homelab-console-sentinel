@@ -16,8 +16,11 @@ Implemented in `apps/sentinel`:
 - heartbeat receiver at `POST /heartbeat/{source_id}`;
 - heartbeat timeout detection;
 - local SQLite incident deduplication;
-- Telegram alert on first open incident;
-- Telegram recovery notification when the condition clears.
+- configurable consecutive-failure confirmation (three HTTP failures by
+  default; heartbeat timeout remains one already-debounced failure);
+- two consecutive healthy observations before recovery;
+- persistent cross-source aggregation and cooldown in local SQLite;
+- one Telegram alert/recovery per availability group.
 
 The Sentinel does not call Homelab Console APIs, execute shell commands, forward
 raw HTTP requests, or remediate anything. URLs are read from local config at
@@ -49,6 +52,12 @@ Content-Type: application/json
 ```
 
 `GET /health` only reports the Sentinel process liveness.
+
+The default policy checks every 30 seconds, confirms HTTP failures after three
+samples, waits 120 seconds to aggregate correlated HTTP and heartbeat evidence,
+requires two healthy samples for recovery, and suppresses group reopenings for
+30 minutes. Targets that represent the same availability boundary should share
+the same `notification_group`.
 
 ## Deployment Shape
 
@@ -108,5 +117,5 @@ Milestone 2 should add a narrow Homelab Console integration: an External
 Sentinel page, typed import of Sentinel incidents, WireGuard status from the
 existing VPS provider, and last-heartbeat display.
 
-Milestone 3 should add signed heartbeats, Telegram retry/backoff, retention,
-metrics and real failure drills.
+Milestone 3 should add signed heartbeats, richer Telegram retry/backoff,
+retention, metrics and real failure drills.
