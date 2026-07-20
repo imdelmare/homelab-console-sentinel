@@ -62,7 +62,8 @@ def test_deduplicates_open_incident_and_notifies_recovery(tmp_path):
     assert service._handle_observation(healthy)[0].action == "resolved"
     service._flush_notifications()
     assert len(notifier.messages) == 2
-    assert "RECOVERY" in notifier.messages[1]
+    assert "SENTINEL · RIPRISTINATO" in notifier.messages[1]
+    assert "Tutti i segnali correlati sono tornati regolari." in notifier.messages[1]
 
 
 def test_missing_heartbeat_opens_then_resolves_after_post(tmp_path):
@@ -82,7 +83,7 @@ def test_missing_heartbeat_opens_then_resolves_after_post(tmp_path):
     service.store.record_heartbeat("home", "127.0.0.1", {"ok": True})
     changes = service.run_once()
     assert changes[0].action == "resolved"
-    assert "RECOVERY" in notifier.messages[-1]
+    assert "SENTINEL · RIPRISTINATO" in notifier.messages[-1]
 
 
 def test_heartbeat_server_requires_token_and_records_payload(tmp_path):
@@ -230,7 +231,12 @@ def test_correlated_sources_send_one_group_alert(tmp_path):
     service._flush_notifications()
 
     assert len(notifier.messages) == 1
-    assert "2 correlated availability signal(s)" in notifier.messages[0]
+    assert notifier.messages[0].startswith("🚨 SENTINEL · ALLARME")
+    assert "Disponibilità Homelab compromessa" in notifier.messages[0]
+    assert "2 segnali richiedono attenzione." in notifier.messages[0]
+    assert "• http failed\n  timeout" in notifier.messages[0]
+    assert "• heartbeat failed\n  timeout" in notifier.messages[0]
+    assert notifier.messages[0].endswith("Stato: attivo")
 
 
 def test_http_target_status_range(monkeypatch, tmp_path):

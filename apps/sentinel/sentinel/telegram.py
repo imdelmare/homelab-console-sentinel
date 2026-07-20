@@ -18,7 +18,13 @@ class TelegramNotifier:
         if not self.enabled:
             return False
         url = f"https://api.telegram.org/bot{self.config.bot_token}/sendMessage"
-        body = json.dumps({"chat_id": self.config.chat_id, "text": text}).encode("utf-8")
+        body = json.dumps(
+            {
+                "chat_id": self.config.chat_id,
+                "text": text,
+                "disable_web_page_preview": True,
+            }
+        ).encode("utf-8")
         request = urllib.request.Request(
             url,
             data=body,
@@ -30,8 +36,19 @@ class TelegramNotifier:
 
 
 def alert_text(title: str, description: str, occurrences: int) -> str:
-    return f"[Sentinel] ALERT: {title}\n{description}\nOccurrences: {occurrences}"
+    signal_label = "segnale" if occurrences == 1 else "segnali"
+    return (
+        "🚨 SENTINEL · ALLARME\n\n"
+        f"{title}\n"
+        f"{occurrences} {signal_label} richiedono attenzione.\n\n"
+        f"{description}\n\n"
+        "Stato: attivo"
+    )
 
 
 def recovery_text(title: str) -> str:
-    return f"[Sentinel] RECOVERY: {title}"
+    return (
+        "✅ SENTINEL · RIPRISTINATO\n\n"
+        f"{title}\n"
+        "Tutti i segnali correlati sono tornati regolari."
+    )
