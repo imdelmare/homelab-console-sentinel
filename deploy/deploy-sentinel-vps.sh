@@ -10,7 +10,7 @@ readonly REMOTE_ENV="${REMOTE_DIR}/.env.sentinel"
 readonly REMOTE_CONFIG="${REMOTE_DIR}/config/sentinel.local.json"
 readonly LOCAL_ENV=".env"
 readonly DEPLOY_KEY="/root/.ssh/homelab_sentinel_deploy"
-readonly PUBLIC_HEALTH_URL="https://console.example.com/health"
+readonly PUBLIC_HEALTH_URL="https://console.example.com/ready"
 readonly RSYNC_SSH="ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -i ${DEPLOY_KEY}"
 readonly SSH_OPTIONS=(
   -o BatchMode=yes
