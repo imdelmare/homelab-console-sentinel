@@ -27,7 +27,7 @@ Send one heartbeat from the cluster side:
 
 ```bash
 PYTHONPATH=apps/sentinel \
-SENTINEL_HEARTBEAT_URL=http://192.0.2.10:8766/heartbeat/home \
+SENTINEL_HEARTBEAT_URL=http://10.255.0.1:8766/heartbeat/home \
 SENTINEL_HEARTBEAT_TOKEN=... \
 python -m sentinel.heartbeat_client
 ```

@@ -58,7 +58,7 @@ docker compose -f deploy/docker-compose.sentinel.yml --env-file .env.sentinel lo
 Check process liveness from the VPS:
 
 ```bash
-curl -fsS http://192.0.2.10:8766/health
+curl -fsS http://10.255.0.1:8766/health
 ```
 
 If the heartbeat endpoint is exposed through a reverse proxy, test that public
@@ -77,7 +77,7 @@ Edit `/etc/homelab-console/sentinel-heartbeat.env` with the real Sentinel URL
 and token. For the current private WireGuard deployment, use:
 
 ```env
-SENTINEL_HEARTBEAT_URL=http://192.0.2.10:8766/heartbeat/home
+SENTINEL_HEARTBEAT_URL=http://10.255.0.1:8766/heartbeat/home
 ```
 
 Then install and start the timer:
@@ -161,15 +161,15 @@ Record these values after the first real drill:
 - Telegram chat that received the alert;
 - whether direct public port exposure is used or a reverse proxy terminates TLS.
 
-## Current Lab Deployment
+## Example deployment record
 
-As of the first VPS-only smoke test, the Homelab Sentinel deployment is:
+Record the equivalent values for the operator's own environment. For example:
 
-- VPS: `49.13.159.26` (`ubuntu-4gb-nbg1-2`);
+- VPS: `sentinel.example.net`;
 - path: `/opt/homelab-console-sentinel`;
 - container: `homelab-sentinel`;
-- bind: `192.0.2.10:8766->8766/tcp`;
-- real env/config paths on the VPS:
+- bind: `10.255.0.1:8766->8766/tcp`;
+- env/config paths on the VPS:
   - `/opt/homelab-console-sentinel/.env.sentinel`;
   - `/opt/homelab-console-sentinel/config/sentinel.local.json`;
 - state DB: `/opt/homelab-console-sentinel/data/sentinel.sqlite3`.
@@ -179,7 +179,7 @@ publicly reachable and does not need a Sentinel subdomain.
 
 Smoke test already performed:
 
-1. `GET http://192.0.2.10:8766/health` from the VPS returned `{"ok": true}`.
+1. `GET http://10.255.0.1:8766/health` from the VPS returned `{"ok": true}`.
 2. First run opened a local `heartbeat missing` incident.
 3. A manual local heartbeat to `/heartbeat/home` returned `{"ok": true}`.
 4. The next Sentinel loop marked the incident `resolved`.
@@ -188,7 +188,7 @@ Smoke test already performed:
 Current active check:
 
 - `api-public-health` -> `https://console.example.com/health`.
-- `home` heartbeat -> `http://192.0.2.10:8766/heartbeat/home`.
+- `home` heartbeat -> `http://10.255.0.1:8766/heartbeat/home`.
 
 Do not document the root password, Telegram bot token, Telegram chat id, or
 heartbeat token here. They exist only in local/VPS secret files.

@@ -98,7 +98,7 @@ runtime dependency from Sentinel back into the console:
 
 ```bash
 PYTHONPATH=apps/sentinel \
-SENTINEL_HEARTBEAT_URL=http://192.0.2.10:8766/heartbeat/home \
+SENTINEL_HEARTBEAT_URL=http://10.255.0.1:8766/heartbeat/home \
 SENTINEL_HEARTBEAT_TOKEN='long-random-token' \
 python -m sentinel.heartbeat_client
 ```

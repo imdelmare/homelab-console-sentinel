@@ -4,7 +4,7 @@ set -Eeuo pipefail
 # One-time interactive bootstrap. The password is entered directly into
 # ssh-copy-id and is never read from repository configuration or command args.
 
-readonly VPS_TARGET="root@49.13.159.26"
+readonly VPS_TARGET="${HOMELAB_SENTINEL_VPS_TARGET:?set HOMELAB_SENTINEL_VPS_TARGET to the fixed user@host target}"
 readonly DEPLOY_KEY="/root/.ssh/homelab_sentinel_deploy"
 
 if (($#)); then

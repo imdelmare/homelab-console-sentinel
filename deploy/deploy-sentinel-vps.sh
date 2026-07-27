@@ -4,13 +4,13 @@ set -Eeuo pipefail
 # Fixed, narrow operator deployment for the documented External Sentinel VPS.
 # This script intentionally accepts no host, path or command arguments.
 
-readonly VPS_TARGET="root@49.13.159.26"
+readonly VPS_TARGET="${HOMELAB_SENTINEL_VPS_TARGET:?set HOMELAB_SENTINEL_VPS_TARGET to the fixed user@host target}"
 readonly REMOTE_DIR="/opt/homelab-console-sentinel"
 readonly REMOTE_ENV="${REMOTE_DIR}/.env.sentinel"
 readonly REMOTE_CONFIG="${REMOTE_DIR}/config/sentinel.local.json"
 readonly LOCAL_ENV=".env"
 readonly DEPLOY_KEY="/root/.ssh/homelab_sentinel_deploy"
-readonly PUBLIC_HEALTH_URL="https://console.example.com/ready"
+readonly PUBLIC_HEALTH_URL="${HOMELAB_PUBLIC_HEALTH_URL:-https://console.example.com/ready}"
 readonly RSYNC_SSH="ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -i ${DEPLOY_KEY}"
 readonly SSH_OPTIONS=(
   -o BatchMode=yes
@@ -51,7 +51,7 @@ ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
 
 if [[ "$mode" == "check" ]]; then
   ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
-    "docker inspect homelab-sentinel --format 'container={{.Name}} status={{.State.Status}} image={{.Config.Image}}' && curl -fsS http://192.0.2.10:8766/health"
+    "docker inspect homelab-sentinel --format 'container={{.Name}} status={{.State.Status}} image={{.Config.Image}}' && curl -fsS http://10.255.0.1:8766/health"
   exit 0
 fi
 
@@ -96,7 +96,7 @@ PY
 
   echo "Restarting and verifying Sentinel..."
   ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
-    "docker restart homelab-sentinel >/dev/null && for attempt in \$(seq 1 20); do curl -fsS http://192.0.2.10:8766/health >/dev/null && docker inspect homelab-sentinel --format 'container={{.Name}} status={{.State.Status}}' && exit 0; sleep 2; done; docker logs --tail 80 homelab-sentinel >&2; exit 1"
+    "docker restart homelab-sentinel >/dev/null && for attempt in \$(seq 1 20); do curl -fsS http://10.255.0.1:8766/health >/dev/null && docker inspect homelab-sentinel --format 'container={{.Name}} status={{.State.Status}}' && exit 0; sleep 2; done; docker logs --tail 80 homelab-sentinel >&2; exit 1"
   exit 0
 fi
 
@@ -133,12 +133,12 @@ PY
 
 echo "Building and restarting Sentinel..."
 ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
-  "cd '$REMOTE_DIR' && flock -w 60 /tmp/homelab-sentinel-deploy.lock sh -c 'set -eu; if docker image inspect homelab-sentinel:latest >/dev/null 2>&1; then docker tag homelab-sentinel:latest homelab-sentinel:rollback; fi; docker build -f deploy/Dockerfile.sentinel -t homelab-sentinel:latest .; docker rm -f homelab-sentinel >/dev/null 2>&1 || true; docker run -d --name homelab-sentinel --restart unless-stopped --env-file .env.sentinel -v ${REMOTE_DIR}/config:/app/config:ro -v ${REMOTE_DIR}/data:/app/data -p 192.0.2.10:8766:8766 homelab-sentinel:latest'"
+  "cd '$REMOTE_DIR' && flock -w 60 /tmp/homelab-sentinel-deploy.lock sh -c 'set -eu; if docker image inspect homelab-sentinel:latest >/dev/null 2>&1; then docker tag homelab-sentinel:latest homelab-sentinel:rollback; fi; docker build -f deploy/Dockerfile.sentinel -t homelab-sentinel:latest .; docker rm -f homelab-sentinel >/dev/null 2>&1 || true; docker run -d --name homelab-sentinel --restart unless-stopped --env-file .env.sentinel -v ${REMOTE_DIR}/config:/app/config:ro -v ${REMOTE_DIR}/data:/app/data -p 10.255.0.1:8766:8766 homelab-sentinel:latest'"
 
 echo "Waiting for Sentinel health..."
 ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
-  "for attempt in \$(seq 1 12); do curl -fsS http://192.0.2.10:8766/health >/dev/null && exit 0; sleep 5; done; docker logs --tail 80 homelab-sentinel >&2; docker rm -f homelab-sentinel >/dev/null 2>&1 || true; if docker image inspect homelab-sentinel:rollback >/dev/null 2>&1; then docker run -d --name homelab-sentinel --restart unless-stopped --env-file '$REMOTE_ENV' -v ${REMOTE_DIR}/config:/app/config:ro -v ${REMOTE_DIR}/data:/app/data -p 192.0.2.10:8766:8766 homelab-sentinel:rollback; fi; exit 1"
+  "for attempt in \$(seq 1 12); do curl -fsS http://10.255.0.1:8766/health >/dev/null && exit 0; sleep 5; done; docker logs --tail 80 homelab-sentinel >&2; docker rm -f homelab-sentinel >/dev/null 2>&1 || true; if docker image inspect homelab-sentinel:rollback >/dev/null 2>&1; then docker run -d --name homelab-sentinel --restart unless-stopped --env-file '$REMOTE_ENV' -v ${REMOTE_DIR}/config:/app/config:ro -v ${REMOTE_DIR}/data:/app/data -p 10.255.0.1:8766:8766 homelab-sentinel:rollback; fi; exit 1"
 
 echo "Verifying deployed service..."
 ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
-  "docker inspect homelab-sentinel --format 'container={{.Name}} status={{.State.Status}} image={{.Config.Image}}' && curl -fsS http://192.0.2.10:8766/health && docker logs --tail 20 homelab-sentinel 2>&1"
+  "docker inspect homelab-sentinel --format 'container={{.Name}} status={{.State.Status}} image={{.Config.Image}}' && curl -fsS http://10.255.0.1:8766/health && docker logs --tail 20 homelab-sentinel 2>&1"
