@@ -15,6 +15,10 @@ from sentinel.service import SentinelService  # noqa: E402
 from sentinel.store import Observation, SentinelStore  # noqa: E402
 
 
+ROOT = Path(__file__).resolve().parents[3]
+PUBLIC_HEALTH_URL = "https://console.example.com/health"
+
+
 class CaptureNotifier:
     def __init__(self) -> None:
         self.messages: list[str] = []
@@ -27,6 +31,17 @@ class CaptureNotifier:
 class FailingNotifier:
     def send(self, text: str) -> bool:
         raise RuntimeError("delivery failed")
+
+
+def test_deploy_uses_fixed_public_health_target():
+    deploy_script = (ROOT / "deploy" / "deploy-sentinel-vps.sh").read_text(encoding="utf-8")
+    example = json.loads((ROOT / "config" / "sentinel.example.json").read_text(encoding="utf-8"))
+    public_targets = [target for target in example["targets"] if target["id"] == "api-public-health"]
+
+    assert f'readonly PUBLIC_HEALTH_URL="{PUBLIC_HEALTH_URL}"' in deploy_script
+    assert "HOMELAB_PUBLIC_HEALTH_URL" not in deploy_script
+    assert len(public_targets) == 1
+    assert public_targets[0]["url"] == PUBLIC_HEALTH_URL
 
 
 def test_deduplicates_open_incident_and_notifies_recovery(tmp_path):

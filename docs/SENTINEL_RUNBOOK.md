@@ -35,6 +35,8 @@ process arguments.
 `api-public-health` target to the repository's fixed Homelab Console health
 URL, creates a timestamped backup of the remote JSON, restarts Sentinel and
 checks its private health endpoint. It accepts no host, path or URL arguments.
+The fixed target is `https://console.example.com/health`; callers cannot
+override it through environment variables.
 
 The deploy uses only `/root/.ssh/homelab_sentinel_deploy`. Never copy the VPS
 password into a script, shell history or repository file. Rotate any password
