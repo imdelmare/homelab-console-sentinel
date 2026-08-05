@@ -13,6 +13,7 @@ from sentinel.heartbeat import HeartbeatServer  # noqa: E402
 from sentinel.heartbeat_client import HeartbeatClientConfig, load_client_config, send_heartbeat  # noqa: E402
 from sentinel.service import SentinelService  # noqa: E402
 from sentinel.store import Observation, SentinelStore  # noqa: E402
+from sentinel.telegram import alert_text  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -31,6 +32,10 @@ class CaptureNotifier:
 class FailingNotifier:
     def send(self, text: str) -> bool:
         raise RuntimeError("delivery failed")
+
+
+def test_sentinel_alert_uses_correct_english_singular():
+    assert "1 signal requires attention." in alert_text("Console unavailable", "timeout", 1)
 
 
 def test_deploy_uses_fixed_public_health_target():
@@ -77,8 +82,8 @@ def test_deduplicates_open_incident_and_notifies_recovery(tmp_path):
     assert service._handle_observation(healthy)[0].action == "resolved"
     service._flush_notifications()
     assert len(notifier.messages) == 2
-    assert "SENTINEL · RIPRISTINATO" in notifier.messages[1]
-    assert "Tutti i segnali correlati sono tornati regolari." in notifier.messages[1]
+    assert "SENTINEL · RECOVERED" in notifier.messages[1]
+    assert "All correlated signals have returned to normal." in notifier.messages[1]
 
 
 def test_missing_heartbeat_opens_then_resolves_after_post(tmp_path):
@@ -98,7 +103,7 @@ def test_missing_heartbeat_opens_then_resolves_after_post(tmp_path):
     service.store.record_heartbeat("home", "127.0.0.1", {"ok": True})
     changes = service.run_once()
     assert changes[0].action == "resolved"
-    assert "SENTINEL · RIPRISTINATO" in notifier.messages[-1]
+    assert "SENTINEL · RECOVERED" in notifier.messages[-1]
 
 
 def test_heartbeat_server_requires_token_and_records_payload(tmp_path):
@@ -246,12 +251,12 @@ def test_correlated_sources_send_one_group_alert(tmp_path):
     service._flush_notifications()
 
     assert len(notifier.messages) == 1
-    assert notifier.messages[0].startswith("🚨 SENTINEL · ALLARME")
-    assert "Disponibilità Homelab compromessa" in notifier.messages[0]
-    assert "2 segnali richiedono attenzione." in notifier.messages[0]
+    assert notifier.messages[0].startswith("🚨 SENTINEL · ALERT")
+    assert "Homelab availability degraded" in notifier.messages[0]
+    assert "2 signals require attention." in notifier.messages[0]
     assert "• http failed\n  timeout" in notifier.messages[0]
     assert "• heartbeat failed\n  timeout" in notifier.messages[0]
-    assert notifier.messages[0].endswith("Stato: attivo")
+    assert notifier.messages[0].endswith("Status: active")
 
 
 def test_http_target_status_range(monkeypatch, tmp_path):

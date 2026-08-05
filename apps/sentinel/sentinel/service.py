@@ -85,7 +85,7 @@ class SentinelService:
             incidents = self.store.open_group_incidents(str(group["notification_group"]))
             if not incidents:
                 continue
-            title = "Disponibilità Homelab compromessa"
+            title = "Homelab availability degraded"
             description = "\n".join(
                 f"• {item['title']}\n  {item['last_error']}" for item in incidents[:8]
             )
@@ -112,7 +112,7 @@ class SentinelService:
                         source_id=group,
                         kind="group",
                         ok=True,
-                        title="Disponibilità Homelab ripristinata",
+                        title="Homelab availability restored",
                         description="All correlated signals recovered",
                     ),
                     1,

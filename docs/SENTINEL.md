@@ -7,6 +7,8 @@ outage.
 
 Treat it as a dead-man switch, not a second control plane. It observes from the
 outside, deduplicates locally, and sends Telegram alerts directly from the VPS.
+Its automatic Telegram alerts and recoveries use US English; historical or
+user-provided content is not translated.
 
 ## Milestone 1
 

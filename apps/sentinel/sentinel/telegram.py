@@ -36,19 +36,20 @@ class TelegramNotifier:
 
 
 def alert_text(title: str, description: str, occurrences: int) -> str:
-    signal_label = "segnale" if occurrences == 1 else "segnali"
+    signal_label = "signal" if occurrences == 1 else "signals"
+    verb = "requires" if occurrences == 1 else "require"
     return (
-        "🚨 SENTINEL · ALLARME\n\n"
+        "🚨 SENTINEL · ALERT\n\n"
         f"{title}\n"
-        f"{occurrences} {signal_label} richiedono attenzione.\n\n"
+        f"{occurrences} {signal_label} {verb} attention.\n\n"
         f"{description}\n\n"
-        "Stato: attivo"
+        "Status: active"
     )
 
 
 def recovery_text(title: str) -> str:
     return (
-        "✅ SENTINEL · RIPRISTINATO\n\n"
+        "✅ SENTINEL · RECOVERED\n\n"
         f"{title}\n"
-        "Tutti i segnali correlati sono tornati regolari."
+        "All correlated signals have returned to normal."
     )
