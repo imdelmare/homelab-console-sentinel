@@ -21,6 +21,7 @@ stdin:
 deploy/bootstrap-sentinel-vps-key.sh  # one time, interactive password prompt
 deploy/deploy-sentinel-vps.sh --check
 deploy/deploy-sentinel-vps.sh --update-public-health
+deploy/deploy-sentinel-vps.sh --update-private-health
 deploy/deploy-sentinel-vps.sh
 ```
 
@@ -32,11 +33,17 @@ bind, and waits for `/health`. No credentials are printed or passed through
 process arguments.
 
 `--update-public-health` is a separate narrow operation: it changes only the
-`api-public-health` target to the repository's fixed Homelab Console health
+`console-public-health` target to the repository's fixed Homelab Console health
 URL, creates a timestamped backup of the remote JSON, restarts Sentinel and
 checks its private health endpoint. It accepts no host, path or URL arguments.
 The fixed target is `https://console.example.com/health`; callers cannot
 override it through environment variables.
+
+`--update-private-health` is the equivalent fixed operation for the dedicated
+control-plane LXC. It first verifies `http://192.0.2.20/health` from the VPS,
+backs up the remote JSON, updates only `console-public-health`, restarts Sentinel,
+and restores the previous configuration if Sentinel does not become healthy.
+The address cannot be supplied by the caller.
 
 The deploy uses only `/root/.ssh/homelab_sentinel_deploy`. Never copy the VPS
 password into a script, shell history or repository file. Rotate any password
@@ -60,7 +67,7 @@ docker compose -f deploy/docker-compose.sentinel.yml --env-file .env.sentinel lo
 Check process liveness from the VPS:
 
 ```bash
-curl -fsS http://10.255.0.1:8766/health
+curl -fsS http://192.0.2.10:8766/health
 ```
 
 If the heartbeat endpoint is exposed through a reverse proxy, test that public
@@ -79,7 +86,7 @@ Edit `/etc/homelab-console/sentinel-heartbeat.env` with the real Sentinel URL
 and token. For the current private WireGuard deployment, use:
 
 ```env
-SENTINEL_HEARTBEAT_URL=http://10.255.0.1:8766/heartbeat/home
+SENTINEL_HEARTBEAT_URL=http://192.0.2.10:8766/heartbeat/home
 ```
 
 Then install and start the timer:
@@ -170,7 +177,7 @@ Record the equivalent values for the operator's own environment. For example:
 - VPS: `sentinel.example.net`;
 - path: `/opt/homelab-console-sentinel`;
 - container: `homelab-sentinel`;
-- bind: `10.255.0.1:8766->8766/tcp`;
+- bind: `192.0.2.10:8766->8766/tcp`;
 - env/config paths on the VPS:
   - `/opt/homelab-console-sentinel/.env.sentinel`;
   - `/opt/homelab-console-sentinel/config/sentinel.local.json`;
@@ -181,7 +188,7 @@ publicly reachable and does not need a Sentinel subdomain.
 
 Smoke test already performed:
 
-1. `GET http://10.255.0.1:8766/health` from the VPS returned `{"ok": true}`.
+1. `GET http://192.0.2.10:8766/health` from the VPS returned `{"ok": true}`.
 2. First run opened a local `heartbeat missing` incident.
 3. A manual local heartbeat to `/heartbeat/home` returned `{"ok": true}`.
 4. The next Sentinel loop marked the incident `resolved`.
@@ -189,8 +196,8 @@ Smoke test already performed:
 
 Current active check:
 
-- `api-public-health` -> `https://console.example.com/health`.
-- `home` heartbeat -> `http://10.255.0.1:8766/heartbeat/home`.
+- `console-public-health` -> `http://192.0.2.20/health`.
+- `home` heartbeat -> `http://192.0.2.10:8766/heartbeat/home`.
 
 Do not document the root password, Telegram bot token, Telegram chat id, or
 heartbeat token here. They exist only in local/VPS secret files.
