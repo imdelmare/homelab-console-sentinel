@@ -5,6 +5,9 @@ Console. It covers the failure mode where the console, WireGuard path, or home
 network is unreachable and the normal watcher stack cannot report its own
 outage.
 
+The independently releasable HTTP, persistence and compatibility boundary is
+frozen in [`contracts/SENTINEL_V1.md`](contracts/SENTINEL_V1.md).
+
 Treat it as a dead-man switch, not a second control plane. It observes from the
 outside, deduplicates locally, and sends Telegram alerts directly from the VPS.
 Its automatic Telegram alerts and recoveries use US English; historical or
