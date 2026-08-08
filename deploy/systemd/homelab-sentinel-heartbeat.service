@@ -1,12 +1,12 @@
 [Unit]
 Description=Send Homelab Console heartbeat to External Sentinel
-Documentation=docs/SENTINEL.md
+Documentation=https://github.com/imdelmare/homelab-console-sentinel
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/opt/homelab-console
+WorkingDirectory=/opt/homelab-console-sentinel
 EnvironmentFile=/etc/homelab-console/sentinel-heartbeat.env
 ExecStart=/usr/bin/python -m sentinel.heartbeat_client
-Environment=PYTHONPATH=/opt/homelab-console/apps/sentinel
+Environment=PYTHONPATH=/opt/homelab-console-sentinel

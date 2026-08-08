@@ -16,9 +16,8 @@ from sentinel.store import Observation, SentinelStore  # noqa: E402
 from sentinel.telegram import alert_text  # noqa: E402
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[1]
 PUBLIC_HEALTH_URL = "https://console.example.com/health"
-PRIVATE_HEALTH_URL = "http://192.0.2.20/health"
 
 
 class CaptureNotifier:
@@ -40,7 +39,7 @@ def test_sentinel_alert_uses_correct_english_singular():
 
 
 def test_example_and_deploy_use_fixed_public_health_target():
-    deploy_path = ROOT / "deploy" / "deploy-sentinel-vps.sh"
+    deploy_path = ROOT / "scripts" / "deploy-sentinel-vps.sh"
     example = json.loads((ROOT / "config" / "sentinel.example.json").read_text(encoding="utf-8"))
     public_targets = [target for target in example["targets"] if target["id"] == "console-public-health"]
 
@@ -49,8 +48,9 @@ def test_example_and_deploy_use_fixed_public_health_target():
     if deploy_path.exists():
         deploy_script = deploy_path.read_text(encoding="utf-8")
         assert 'readonly HEALTH_TARGET_ID="console-public-health"' in deploy_script
-        assert f'readonly PUBLIC_HEALTH_URL="{PUBLIC_HEALTH_URL}"' in deploy_script
-        assert f'readonly PRIVATE_HEALTH_URL="{PRIVATE_HEALTH_URL}"' in deploy_script
+        assert "SENTINEL_PUBLIC_HEALTH_URL" in deploy_script
+        assert "SENTINEL_PRIVATE_HEALTH_URL" in deploy_script
+        assert "SENTINEL_BIND_ADDRESS" in deploy_script
         assert "--update-private-health" in deploy_script
         assert "HOMELAB_PUBLIC_HEALTH_URL" not in deploy_script
 

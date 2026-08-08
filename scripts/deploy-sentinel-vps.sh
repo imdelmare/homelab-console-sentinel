@@ -8,12 +8,12 @@ readonly VPS_TARGET="${HOMELAB_SENTINEL_VPS_TARGET:?set HOMELAB_SENTINEL_VPS_TAR
 readonly REMOTE_DIR="/opt/homelab-console-sentinel"
 readonly REMOTE_ENV="${REMOTE_DIR}/.env.sentinel"
 readonly REMOTE_CONFIG="${REMOTE_DIR}/config/sentinel.local.json"
-readonly LOCAL_ENV=".env"
+readonly LOCAL_ENV=".env.sentinel"
 readonly DEPLOY_KEY="/root/.ssh/homelab_sentinel_deploy"
 readonly HEALTH_TARGET_ID="console-public-health"
-readonly PUBLIC_HEALTH_URL="https://console.example.com/health"
-readonly PRIVATE_HEALTH_URL="http://192.0.2.20/health"
-readonly SENTINEL_BIND_ADDRESS="192.0.2.10"
+readonly PUBLIC_HEALTH_URL="${SENTINEL_PUBLIC_HEALTH_URL:?set SENTINEL_PUBLIC_HEALTH_URL}"
+readonly PRIVATE_HEALTH_URL="${SENTINEL_PRIVATE_HEALTH_URL:?set SENTINEL_PRIVATE_HEALTH_URL}"
+readonly SENTINEL_BIND_ADDRESS="${SENTINEL_BIND_ADDRESS:?set SENTINEL_BIND_ADDRESS}"
 readonly DEPLOY_LOCK="/tmp/homelab-sentinel-deploy.lock"
 readonly RSYNC_SSH="ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -i ${DEPLOY_KEY}"
 readonly SSH_OPTIONS=(
@@ -25,7 +25,7 @@ readonly SSH_OPTIONS=(
 )
 
 usage() {
-  echo "usage: deploy/deploy-sentinel-vps.sh [--check|--update-public-health|--update-private-health]" >&2
+  echo "usage: scripts/deploy-sentinel-vps.sh [--check|--update-public-health|--update-private-health]" >&2
 }
 
 mode="deploy"
@@ -48,7 +48,7 @@ if [[ ! -f "$LOCAL_ENV" ]]; then
   exit 1
 fi
 if [[ ! -f "$DEPLOY_KEY" ]]; then
-  echo "missing dedicated deploy key; run deploy/bootstrap-sentinel-vps-key.sh" >&2
+  echo "missing dedicated deploy key; run scripts/bootstrap-sentinel-vps-key.sh" >&2
   exit 1
 fi
 
@@ -219,17 +219,19 @@ fi
 
 echo "Synchronizing fixed Sentinel release files..."
 ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
-  "mkdir -p '$REMOTE_DIR/apps/sentinel/sentinel' '$REMOTE_DIR/deploy'"
+  "mkdir -p '$REMOTE_DIR/sentinel' '$REMOTE_DIR/deploy' '$REMOTE_DIR/scripts'"
 rsync -a --delete -e "$RSYNC_SSH" \
-  apps/sentinel/sentinel/ "$VPS_TARGET:$REMOTE_DIR/apps/sentinel/sentinel/"
+  sentinel/ "$VPS_TARGET:$REMOTE_DIR/sentinel/"
 rsync -a -e "$RSYNC_SSH" \
-  deploy/Dockerfile.sentinel \
-  deploy/update-sentinel-secrets.py \
+  deploy/Dockerfile \
   "$VPS_TARGET:$REMOTE_DIR/deploy/"
+rsync -a -e "$RSYNC_SSH" \
+  scripts/update-sentinel-secrets.py \
+  "$VPS_TARGET:$REMOTE_DIR/scripts/"
 
 echo "Synchronizing Telegram credentials..."
 python3 - "$LOCAL_ENV" <<'PY' | ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
-  "cd '$REMOTE_DIR' && python3 deploy/update-sentinel-secrets.py '$REMOTE_ENV'"
+  "cd '$REMOTE_DIR' && python3 scripts/update-sentinel-secrets.py '$REMOTE_ENV'"
 import json
 import sys
 from pathlib import Path
@@ -250,7 +252,7 @@ PY
 
 echo "Building and restarting Sentinel..."
 ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \
-  "cd '$REMOTE_DIR' && flock -w 60 '$DEPLOY_LOCK' sh -c 'set -eu; if docker image inspect homelab-sentinel:latest >/dev/null 2>&1; then docker tag homelab-sentinel:latest homelab-sentinel:rollback; fi; docker build -f deploy/Dockerfile.sentinel -t homelab-sentinel:latest .; docker rm -f homelab-sentinel >/dev/null 2>&1 || true; docker run -d --name homelab-sentinel --restart unless-stopped --env-file .env.sentinel -v ${REMOTE_DIR}/config:/app/config:ro -v ${REMOTE_DIR}/data:/app/data -p $SENTINEL_BIND_ADDRESS:8766:8766 homelab-sentinel:latest'"
+  "cd '$REMOTE_DIR' && flock -w 60 '$DEPLOY_LOCK' sh -c 'set -eu; if docker image inspect homelab-sentinel:latest >/dev/null 2>&1; then docker tag homelab-sentinel:latest homelab-sentinel:rollback; fi; docker build -f deploy/Dockerfile -t homelab-sentinel:latest .; docker rm -f homelab-sentinel >/dev/null 2>&1 || true; docker run -d --name homelab-sentinel --restart unless-stopped --env-file .env.sentinel -v ${REMOTE_DIR}/config:/app/config:ro -v ${REMOTE_DIR}/data:/app/data -p $SENTINEL_BIND_ADDRESS:8766:8766 homelab-sentinel:latest'"
 
 echo "Waiting for Sentinel health..."
 ssh "${SSH_OPTIONS[@]}" "$VPS_TARGET" \

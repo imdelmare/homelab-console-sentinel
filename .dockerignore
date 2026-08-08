@@ -1,0 +1,5 @@
+**
+!sentinel/
+!sentinel/**
+!deploy/
+!deploy/Dockerfile

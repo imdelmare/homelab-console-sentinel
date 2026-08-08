@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "homelab-console-sentinel"
+version = "1.0.0"
+description = "Standalone external availability observer for Homelab Console"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{name = "Homelab Console contributors"}]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3"]
+
+[project.scripts]
+homelab-sentinel = "sentinel.__main__:main"
+homelab-sentinel-heartbeat = "sentinel.heartbeat_client:main"
+
+[tool.setuptools]
+packages = ["sentinel"]

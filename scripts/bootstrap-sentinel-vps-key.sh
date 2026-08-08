@@ -8,7 +8,7 @@ readonly VPS_TARGET="${HOMELAB_SENTINEL_VPS_TARGET:?set HOMELAB_SENTINEL_VPS_TAR
 readonly DEPLOY_KEY="/root/.ssh/homelab_sentinel_deploy"
 
 if (($#)); then
-  echo "usage: deploy/bootstrap-sentinel-vps-key.sh" >&2
+  echo "usage: scripts/bootstrap-sentinel-vps-key.sh" >&2
   exit 2
 fi
 
@@ -35,4 +35,4 @@ ssh \
   "$VPS_TARGET" \
   'true'
 
-echo "Bootstrap complete. Run deploy/deploy-sentinel-vps.sh --check next."
+echo "Bootstrap complete. Run scripts/deploy-sentinel-vps.sh --check next."

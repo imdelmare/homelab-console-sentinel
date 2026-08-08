@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY apps/sentinel/sentinel ./sentinel
+COPY sentinel ./sentinel
 
 RUN useradd --create-home --uid 10002 --shell /usr/sbin/nologin sentinel \
     && mkdir -p /app/data /app/config \
